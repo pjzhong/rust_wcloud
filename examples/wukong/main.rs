@@ -1,19 +1,17 @@
 use std::time::Instant;
 
-use nanorand::{Rng, WyRand};
-use rust_wcloud::{ChineseTokenizer, Word, WordCloud, WordCloudSize};
+use rust_wcloud::{ChineseTokenizer, WordCloud, WordCloudSize};
 
 /// 1.现在分词搞定了
 /// 2.思考如何进行排版
 pub fn main() {
     let wukong = include_str!("wukong.txt");
     let tokenlizer = ChineseTokenizer::default()
-    .with_max_words(100)
+        .with_max_words(10)
         .with_min_word_leng(2)
         .with_word("悟空传");
 
-    let wordcloud = WordCloud::default()
-        .with_tokenizer(tokenlizer);
+    let wordcloud = WordCloud::default().with_tokenizer(tokenlizer);
 
     let mask = WordCloudSize::FromDimensions {
         width: 1920,
