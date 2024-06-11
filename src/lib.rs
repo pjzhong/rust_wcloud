@@ -143,7 +143,7 @@ impl WordCloud {
         let mut font_size = {
             let rect_at_image_height = self.text_dimensions_at_font_size(
                 first_word.0,
-                PxScale::from(gray_buffer.height() as f32 * 0.95),
+                PxScale::from(gray_buffer.height() as f32 * 0.55),
             );
 
             let height_ration =
