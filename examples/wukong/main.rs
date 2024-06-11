@@ -3,11 +3,11 @@ use std::time::Instant;
 use rust_wcloud::{ChineseTokenizer, WordCloud, WordCloudSize};
 
 /// 1.现在分词搞定了
-/// 2.思考如何进行排版
+/// 2.思考如何进行排版,词重叠在一起了。区域先排查下
 pub fn main() {
     let wukong = include_str!("wukong.txt");
     let tokenlizer = ChineseTokenizer::default()
-        .with_max_words(10)
+        .with_max_words(1000)
         .with_min_word_leng(2)
         .with_word("悟空传");
 

@@ -163,6 +163,7 @@ impl WordCloud {
                 break;
             }
 
+            let _shold_rotate = false;
             let (pos, glyphs) = match self.place_word(
                 word,
                 &mut font_size,
@@ -173,6 +174,14 @@ impl WordCloud {
                 Some(some) => some,
                 None => continue,
             };
+
+            text::draw_glyphs_to_gray_buffer(
+                &mut gray_buffer,
+                glyphs.clone(),
+                &self.font,
+                pos,
+                _shold_rotate,
+            );
 
             u8_to_u32_vec(&gray_buffer, &mut summed_area_table);
 

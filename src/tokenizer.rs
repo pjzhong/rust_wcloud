@@ -1,7 +1,7 @@
-use std::{collections::HashMap, iter::Filter};
+use std::collections::HashMap;
 
 use jieba_rs::Jieba;
-use regex::{Match, Matches, Regex};
+use regex::{Matches, Regex};
 
 pub struct ChineseTokenizer {
     //分词正则
