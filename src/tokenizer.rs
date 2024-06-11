@@ -1,12 +1,13 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use jieba_rs::Jieba;
-use regex::{Matches, Regex};
+use regex::Regex;
 
 pub struct ChineseTokenizer {
     //分词正则
     regex: Regex,
     pub jieba: Jieba,
+    pub filter: HashSet<String>,
     pub min_word_length: usize,
     pub exclude_numbers: bool,
     pub max_words: usize,
@@ -20,6 +21,7 @@ impl Default for ChineseTokenizer {
         ChineseTokenizer {
             regex,
             jieba: Jieba::new(),
+            filter: Default::default(),
             min_word_length: 0,
             exclude_numbers: true,
             max_words: 200,
@@ -44,24 +46,53 @@ impl<'a> ChineseTokenizer {
         self
     }
 
-    fn tokenize(&'a self, text: &'a str) -> Matches {
-        self.regex.find_iter(text)
+    pub fn with_filter(mut self, value: &[&str]) -> Self {
+        self.filter = value.iter().map(|el| el.to_lowercase()).collect();
+
+        self
+    }
+
+    pub fn with_exclude_numbers(mut self, value: bool) -> Self {
+        self.exclude_numbers = value;
+        self
+    }
+
+    fn tokenize(&'a self, text: &'a str) -> impl IntoIterator<Item = &str> {
+        let mut iter: Box<dyn Iterator<Item = &str>> = Box::new(
+            self.regex
+                .find_iter(text)
+                .map(|mat| mat.as_str())
+                .filter(|str| !str.is_empty())
+                .flat_map(|str| self.jieba.cut(str, false)),
+        );
+
+        if self.min_word_length > 0 {
+            iter = Box::new(iter.filter(|str| {
+                let chars = str.chars().count();
+                chars >= self.min_word_length
+            }));
+        }
+
+        if self.exclude_numbers {
+            iter = Box::new(iter.filter(move |word| !word.chars().all(char::is_numeric)));
+        }
+
+        if !self.filter.is_empty() {
+            iter = Box::new(iter.filter(|str| {
+                let lower_case = str.to_lowercase();
+                !self.filter.contains(&lower_case)
+            }));
+        }
+
+        iter
     }
 
     pub fn get_word_frequencies(&'a self, text: &'a str) -> HashMap<&'a str, usize> {
         let mut frequencies = HashMap::new();
 
         for word in self.tokenize(text) {
-            let words = self.jieba.cut(word.as_str(), false);
-            for word in words {
-                let size = word.chars().count();
-                if size < self.min_word_length {
-                    continue;
-                }
-
-                let entry = frequencies.entry(word).or_insert(0);
-                *entry += 1;
-            }
+            let entry = frequencies.entry(word).or_insert(0);
+            *entry += 1;
         }
 
         frequencies
@@ -111,27 +142,26 @@ mod tests {
 
     #[test]
     fn wukong() {
-        let str = fs::read_to_string("text/wukong.txt")
+        let str = fs::read_to_string("text/news.txt")
             .unwrap()
             .lines()
             .map(|line| line.trim())
             .collect::<String>();
-        let tokenlizer = ChineseTokenizer::default()
-            .with_min_word_leng(2)
-            .with_word("悟空传");
+        let tokenlizer = ChineseTokenizer::default().with_min_word_leng(2);
         let mut frequencies = tokenlizer
             .get_word_frequencies(&str)
             .into_iter()
             .collect::<Vec<_>>();
         frequencies.sort_by_key(|word| word.1);
+        frequencies.reverse();
         let mut path = OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
-            .open("text/wukong_count.txt")
+            .open("text/news_count.txt")
             .unwrap();
         for (k, v) in &frequencies {
-            path.write_all(format!("{k:?} {v:?}\n").as_bytes()).unwrap();
+            path.write_all(format!("{k}, {v}\n").as_bytes()).unwrap();
         }
 
         path.write_all(format!("all:{:?}\n", frequencies.len()).as_bytes())

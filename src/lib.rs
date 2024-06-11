@@ -121,8 +121,8 @@ impl WordCloud {
         let (mut summed_area_table, mut gray_buffer) = match size {
             WordCloudSize::FromDimensions { width, height } => {
                 let buf = GrayImage::from_pixel(width, height, Luma([0]));
-                let summed_area_table = buf.as_raw().iter().map(|e| *e as u32).collect::<Vec<_>>();
-
+                let mut summed_area_table = vec![0; buf.len()];
+                u8_to_u32_vec(&buf, &mut summed_area_table);
                 (summed_area_table, buf)
             }
         };
@@ -148,9 +148,8 @@ impl WordCloud {
 
             let height_ration =
                 rect_at_image_height.height as f32 / rect_at_image_height.width as f32;
-            let start_height = gray_buffer.width() as f32 * height_ration;
 
-            start_height
+            gray_buffer.width() as f32 * height_ration
         };
 
         for (word, freq) in &words {
@@ -163,16 +162,21 @@ impl WordCloud {
                 break;
             }
 
-            let _shold_rotate = false;
-            let (pos, glyphs) = match self.place_word(
+            let (pos, glyphs, rotated) = match self.place_word(
                 word,
-                &mut font_size,
+                font_size,
                 &gray_buffer,
                 &summed_area_table,
                 &mut rng,
             ) {
-                Some(some) => some,
-                None => continue,
+                Ok((pos, glyphs, rotate, new_font_size)) => {
+                    font_size = new_font_size;
+                    (pos, glyphs, rotate)
+                }
+                Err(new_font_size) => {
+                    font_size = new_font_size;
+                    continue;
+                }
             };
 
             text::draw_glyphs_to_gray_buffer(
@@ -180,17 +184,15 @@ impl WordCloud {
                 glyphs.clone(),
                 &self.font,
                 pos,
-                _shold_rotate,
+                rotated,
             );
-
-            u8_to_u32_vec(&gray_buffer, &mut summed_area_table);
 
             final_words.push(Word {
                 text,
                 font: &self.font,
                 font_size: PxScale::from(font_size),
                 glyphs: glyphs.clone(),
-                rotated: false,
+                rotated,
                 position: pos,
                 frequency: *freq,
                 index: final_words.len(),
@@ -221,26 +223,36 @@ impl WordCloud {
     fn place_word(
         &self,
         word: &str,
-        font_size: &mut f32,
+        mut font_size: f32,
         gray_buffer: &ImageBuffer<Luma<u8>, Vec<u8>>,
-        summed_area_table: &Vec<u32>,
+        summed_area_table: &[u32],
         rng: &mut WyRand,
-    ) -> Option<(Point, GlyphData)> {
+    ) -> Result<(Point, GlyphData, bool, f32), f32> {
+        let initial_font_size = font_size;
+        let mut shold_rotate = rng.generate::<u8>() <= (255.0 * self.word_rotate_chance) as u8;
+        let mut tried_rotate = false;
         loop {
-            let glyphs = text::text_to_glyphs(word, &self.font, PxScale::from(*font_size));
-            let rect = Rect {
-                width: glyphs.width + self.word_margin,
-                height: glyphs.height + self.word_margin,
+            let glyphs = text::text_to_glyphs(word, &self.font, PxScale::from(font_size));
+            let rect = if shold_rotate {
+                Rect {
+                    width: glyphs.height + self.word_margin,
+                    height: glyphs.width + self.word_margin,
+                }
+            } else {
+                Rect {
+                    width: glyphs.width + self.word_margin,
+                    height: glyphs.height + self.word_margin,
+                }
             };
 
             if rect.width > gray_buffer.width() || rect.height > gray_buffer.height() {
                 if let Some(next_font_size) =
-                    Self::check_font_size(*font_size, self.font_step, self.min_font_size)
+                    Self::check_font_size(font_size, self.font_step, self.min_font_size)
                 {
-                    *font_size = next_font_size;
+                    font_size = next_font_size;
                     continue;
                 } else {
-                    return None;
+                    return Err(font_size);
                 }
             }
 
@@ -256,17 +268,20 @@ impl WordCloud {
                     let x = pos.x as f32 + half_margin;
                     let y = pos.y as f32 + half_margin;
 
-                    return Some((point(x, y), glyphs));
+                    return Ok((point(x, y), glyphs, shold_rotate, font_size));
                 }
                 None => {
-                    //TODO 横着放不行，试下竖着放
                     if let Some(next_font_size) =
-                        Self::check_font_size(*font_size, self.font_step, self.min_font_size)
+                        Self::check_font_size(font_size, self.font_step, self.min_font_size)
                     {
-                        *font_size = next_font_size;
-                    } else {
+                        font_size = next_font_size;
+                    } else if !tried_rotate {
                         //TODO 横着放不行，试下竖着放
-                        return None;
+                        shold_rotate = true;
+                        tried_rotate = true;
+                        font_size = initial_font_size;
+                    } else {
+                        return Err(font_size);
                     }
                 }
             }
@@ -303,18 +318,18 @@ fn random_color_rgba(_: &Word, rng: &mut WyRand) -> Rgba<u8> {
     Rgba([raw[0], raw[1], raw[2], 1])
 }
 
-fn create_mask_skip_list(img: &GrayImage) -> Vec<(usize, usize)> {
-    img.rows()
-        .map(|mut row| {
-            let furthest_left = row
-                .rposition(|p| p == &Luma::from([0]))
-                .unwrap_or(img.width() as usize);
-            let furthest_right = row.position(|p| p == &Luma::from([0])).unwrap_or(0);
+// fn create_mask_skip_list(img: &GrayImage) -> Vec<(usize, usize)> {
+//     img.rows()
+//         .map(|mut row| {
+//             let furthest_left = row
+//                 .rposition(|p| p == &Luma::from([0]))
+//                 .unwrap_or(img.width() as usize);
+//             let furthest_right = row.position(|p| p == &Luma::from([0])).unwrap_or(0);
 
-            (furthest_left, furthest_right)
-        })
-        .collect()
-}
+//             (furthest_left, furthest_right)
+//         })
+//         .collect()
+// }
 
 fn u8_to_u32_vec(buffer: &GrayImage, dst: &mut [u32]) {
     for (i, el) in buffer.as_ref().iter().enumerate() {

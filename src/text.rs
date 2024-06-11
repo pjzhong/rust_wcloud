@@ -1,4 +1,4 @@
-use ab_glyph::{point, Font, FontVec, Glyph, GlyphId, Outline, Point, PxScale, ScaleFont};
+use ab_glyph::{point, Font, FontVec, Glyph, GlyphId, Point, PxScale, ScaleFont};
 use image::{GrayImage, Luma, Pixel, Rgba, RgbaImage};
 
 #[derive(Clone, Debug)]
@@ -35,17 +35,33 @@ pub fn draw_glyphs_to_gray_buffer(
     glyph_data: GlyphData,
     font: &FontVec,
     point: Point,
-    _rotate: bool,
+    rotate: bool,
 ) {
+    let width = glyph_data.width;
     for glyph in glyph_data.glyphs {
         if let Some(outlined) = font.outline_glyph(glyph) {
             let bounds = outlined.px_bounds();
 
             outlined.draw(|x, y, v| {
-                let (final_x, final_y) = (
-                    point.x as u32 + bounds.min.x as u32 + x,
-                    point.y as u32 + bounds.min.y as u32 + y,
-                );
+                if v < 0.05 {
+                    return;
+                }
+
+                let (final_x, final_y) = if rotate {
+                    // (
+                    //     y + point.x as u32 + bounds.min.y as u32,
+                    //     width + point.y as u32 - bounds.min.x as u32 - x,
+                    // )
+                    (
+                        y + point.x as u32 + bounds.min.y as u32,
+                        width + point.y as u32 - bounds.min.x as u32 - x,
+                    )
+                } else {
+                    (
+                        point.x as u32 + bounds.min.x as u32 + x,
+                        point.y as u32 + bounds.min.y as u32 + y,
+                    )
+                };
                 let px = buffer.get_pixel_mut(final_x, final_y);
                 *px = Luma([1])
             })
@@ -58,24 +74,33 @@ pub fn draw_glyphs_to_rgba_buffer(
     glyph_data: GlyphData,
     font: &FontVec,
     point: Point,
-    _rotate: bool,
+    rotate: bool,
     pixel: Rgba<u8>,
 ) {
+    let width = glyph_data.width;
     for glyph in glyph_data.glyphs {
         if let Some(outlined) = font.outline_glyph(glyph) {
             let bounds = outlined.px_bounds();
 
             outlined.draw(|x, y, v| {
-                let (final_x, final_y) = (
-                    point.x as u32 + bounds.min.x as u32 + x,
-                    point.y as u32 + bounds.min.y as u32 + y,
-                );
-                let px = buffer.get_pixel_mut(final_x, final_y);
-                px.apply2(&pixel, |old, new| {
-                    ((v * new as f32) + (1.0 - v) * old as f32) as u8
-                });
-                if px != &Rgba::from([0; 4]) {
-                    px.0[3] = 0xFF;
+                let (final_x, final_y) = if rotate {
+                    (
+                        y + point.x as u32 + bounds.min.y as u32,
+                        width + point.y as u32 - bounds.min.x as u32 - x,
+                    )
+                } else {
+                    (
+                        point.x as u32 + bounds.min.x as u32 + x,
+                        point.y as u32 + bounds.min.y as u32 + y,
+                    )
+                };
+                if let Some(px) = buffer.get_pixel_mut_checked(final_x, final_y) {
+                    px.apply2(&pixel, |old, new| {
+                        ((v * new as f32) + (1.0 - v) * old as f32) as u8
+                    });
+                    if px != &Rgba::from([0; 4]) {
+                        px.0[3] = 0xFF;
+                    }
                 }
             })
         }
