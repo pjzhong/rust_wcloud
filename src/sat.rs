@@ -29,6 +29,45 @@ pub fn region_is_empty(
     tl as i32 + br as i32 - tr as i32 - bl as i32 == 0
 }
 
+pub fn find_space_for_rect_masked(
+    table: &[u32],
+    table_width: u32,
+    table_height: u32,
+    skip_list: &[(usize, usize)],
+    rect: &Rect,
+    rng: &mut WyRand,
+) -> Option<Point> {
+    let max_x = table_width - rect.width;
+    let max_y = table_height - rect.height;
+
+    let mut available_points: u32 = 0;
+    let mut random_pont = None;
+
+    // column based
+    for y in 0..max_y {
+        let (furthest_left, furthest_right) = skip_list[y as usize];
+        for x in furthest_left..furthest_right.min(max_x as usize) {
+            let empty = region_is_empty(
+                table,
+                table_width as usize,
+                x,
+                y as usize,
+                rect.width as usize,
+                rect.height as usize,
+            );
+            if empty {
+                let random_num = rng.generate_range(0..=available_points);
+                if random_num == available_points {
+                    random_pont = Some(Point { x: x as u32, y });
+                }
+                available_points += 1;
+            }
+        }
+    }
+
+    random_pont
+}
+
 /// 在图片寻找位置写字
 pub fn find_space_for_rect(
     table: &[u32],

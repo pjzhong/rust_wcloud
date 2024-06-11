@@ -10,7 +10,7 @@ pub fn main() {
     let tokenlizer = ChineseTokenizer::default()
         .with_max_words(10000)
         .with_min_word_leng(2)
-        .with_filter(&["还有","但是","一个","一样","这个","越来越"]);
+        .with_filter(&["还有", "但是", "一个", "一样", "这个", "越来越"]);
 
     let wordcloud = WordCloud::default()
         .with_tokenizer(tokenlizer)

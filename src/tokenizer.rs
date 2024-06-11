@@ -95,7 +95,43 @@ impl<'a> ChineseTokenizer {
             *entry += 1;
         }
 
-        frequencies
+        let common_cased_map = Self::keep_common_case(&frequencies);
+
+        common_cased_map
+    }
+
+    fn keep_common_case(map: &HashMap<&'a str, usize>) -> HashMap<&'a str, usize> {
+        type CaseCounts<'a> = HashMap<&'a str, usize>;
+
+        let mut common_cases = HashMap::<String, CaseCounts>::new();
+        for (key, val) in map {
+            common_cases
+                .entry(key.to_lowercase())
+                .or_default()
+                .insert(key, *val);
+        }
+
+        common_cases
+            .values()
+            .map(|val| {
+                let mut most_common_case: Vec<(&str, usize)> = val
+                    .iter()
+                    .map(|(case_key, case_val)| (*case_key, *case_val))
+                    .collect();
+
+                most_common_case.sort_by(|a, b| {
+                    if a.1 != b.1 {
+                        (b.1).partial_cmp(&a.1).unwrap()
+                    } else {
+                        (b.0).partial_cmp(a.0).unwrap()
+                    }
+                });
+
+                let occurrence_sum = val.values().sum();
+
+                (most_common_case.first().unwrap().0, occurrence_sum)
+            })
+            .collect()
     }
 
     pub fn get_normalized_word_frequencies(&'a self, text: &'a str) -> Vec<(&'a str, f32)> {

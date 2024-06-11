@@ -26,6 +26,7 @@ pub struct Word<'a> {
 // TODO: Figure out a better way to structure this
 pub enum WordCloudSize {
     FromDimensions { width: u32, height: u32 },
+    FromMask(GrayImage),
 }
 
 pub struct WordCloud {
@@ -125,11 +126,21 @@ impl WordCloud {
                 u8_to_u32_vec(&buf, &mut summed_area_table);
                 (summed_area_table, buf)
             }
+            WordCloudSize::FromMask(image) => {
+                let mut table = image.as_ref().iter().map(|e| *e as u32).collect::<Vec<_>>();
+                sat::to_summed_area_table(&mut table, image.width() as usize, 0);
+                (table, image)
+            }
         };
 
         let mut final_words = Vec::with_capacity(words.len());
         let mut last_freq = 1.0;
-        // let skip_list = create_mask_skip_list(&gray_buffer);
+        let has_mask = matches!(WordCloudSize::FromMask, _size);
+        let skip_list = if has_mask {
+            Some(create_mask_skip_list(&gray_buffer))
+        } else {
+            None
+        };
 
         let mut rng = match self.rng_seed {
             Some(seed) => WyRand::new_seed(seed),
@@ -149,7 +160,15 @@ impl WordCloud {
             let height_ration =
                 rect_at_image_height.height as f32 / rect_at_image_height.width as f32;
 
-            gray_buffer.width() as f32 * height_ration
+            let mut start_height = gray_buffer.width() as f32 * height_ration;
+
+            if matches!(WordCloudSize::FromMask, _size) {
+                let black_pixels = gray_buffer.as_raw().iter().filter(|p| **p == 0).count();
+                let available_space = black_pixels as f32 / gray_buffer.len() as f32;
+                start_height *= available_space;
+            }
+
+            start_height
         };
 
         for (word, freq) in &words {
@@ -166,6 +185,7 @@ impl WordCloud {
                 word,
                 font_size,
                 &gray_buffer,
+                &skip_list,
                 &summed_area_table,
                 &mut rng,
             ) {
@@ -225,6 +245,7 @@ impl WordCloud {
         word: &str,
         mut font_size: f32,
         gray_buffer: &ImageBuffer<Luma<u8>, Vec<u8>>,
+        skip_list: &Option<Vec<(usize, usize)>>,
         summed_area_table: &[u32],
         rng: &mut WyRand,
     ) -> Result<(Point, GlyphData, bool, f32), f32> {
@@ -255,14 +276,26 @@ impl WordCloud {
                     return Err(font_size);
                 }
             }
+            let place_res = if let Some(skip_list) = &skip_list {
+                sat::find_space_for_rect_masked(
+                    summed_area_table,
+                    gray_buffer.width(),
+                    gray_buffer.height(),
+                    skip_list,
+                    &rect,
+                    rng,
+                )
+            } else {
+                sat::find_space_for_rect(
+                    summed_area_table,
+                    gray_buffer.width(),
+                    gray_buffer.height(),
+                    &rect,
+                    rng,
+                )
+            };
 
-            match sat::find_space_for_rect(
-                summed_area_table,
-                gray_buffer.width(),
-                gray_buffer.height(),
-                &rect,
-                rng,
-            ) {
+            match place_res {
                 Some(pos) => {
                     let half_margin = self.word_margin as f32 / 2.0;
                     let x = pos.x as f32 + half_margin;
@@ -318,18 +351,18 @@ fn random_color_rgba(_: &Word, rng: &mut WyRand) -> Rgba<u8> {
     Rgba([raw[0], raw[1], raw[2], 1])
 }
 
-// fn create_mask_skip_list(img: &GrayImage) -> Vec<(usize, usize)> {
-//     img.rows()
-//         .map(|mut row| {
-//             let furthest_left = row
-//                 .rposition(|p| p == &Luma::from([0]))
-//                 .unwrap_or(img.width() as usize);
-//             let furthest_right = row.position(|p| p == &Luma::from([0])).unwrap_or(0);
+fn create_mask_skip_list(img: &GrayImage) -> Vec<(usize, usize)> {
+    img.rows()
+        .map(|mut row| {
+            let furthest_right = row
+                .rposition(|p| p == &Luma::from([0]))
+                .unwrap_or(img.width() as usize);
+            let furthest_left = row.position(|p| p == &Luma::from([0])).unwrap_or(0);
 
-//             (furthest_left, furthest_right)
-//         })
-//         .collect()
-// }
+            (furthest_left, furthest_right)
+        })
+        .collect()
+}
 
 fn u8_to_u32_vec(buffer: &GrayImage, dst: &mut [u32]) {
     for (i, el) in buffer.as_ref().iter().enumerate() {
