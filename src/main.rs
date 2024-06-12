@@ -19,7 +19,7 @@ fn main() {
         .arg(Arg::with_name("text")
             .long("text")
             .value_name("FILE")
-            .help("Specifies the file of words to build the word cloud with").required(true))
+            .help("Specifies the file of words to build the word cloud with"))
         .arg(Arg::with_name("regex")
             .long("regex")
             .value_name("REGEX")
