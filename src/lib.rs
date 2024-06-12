@@ -67,6 +67,11 @@ impl WordCloud {
         self
     }
 
+    pub fn with_min_font_size(mut self, value: f32) -> Self {
+        self.min_font_size = value;
+        self
+    }
+
     pub fn with_font_from_path(mut self, path: impl Into<PathBuf>) -> Self {
         let font_file = fs::read(path.into()).expect("Unable to read font file");
 
@@ -172,7 +177,7 @@ impl WordCloud {
         };
 
         for (word, freq) in &words {
-            if self.relative_font_scaling != 0.0 {
+            if !self.tokenizer.repeat && self.relative_font_scaling != 0.0 {
                 font_size *= self.relative_font_scaling * (freq / last_freq)
                     + (1.0 - self.relative_font_scaling);
             }

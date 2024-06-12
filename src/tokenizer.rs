@@ -57,6 +57,11 @@ impl<'a> ChineseTokenizer {
         self
     }
 
+    pub fn with_repeat(mut self, value: bool) -> Self {
+        self.repeat = value;
+        self
+    }
+
     fn tokenize(&'a self, text: &'a str) -> impl IntoIterator<Item = &str> {
         let mut iter: Box<dyn Iterator<Item = &str>> = Box::new(
             self.regex
@@ -161,6 +166,25 @@ impl<'a> ChineseTokenizer {
 
         if self.max_words > 0 {
             normalized_freqs.truncate(self.max_words);
+        }
+
+        if self.repeat && normalized_freqs.len() < self.max_words as usize {
+            let times_extend =
+                ((self.max_words as f32 / normalized_freqs.len() as f32).ceil()) as u32 - 1;
+
+            let freqs_clone = normalized_freqs.clone();
+            let down_weight = normalized_freqs
+                .last()
+                .expect("The normalized frequencies vec is empty")
+                .1;
+
+            for i in 1..=times_extend {
+                normalized_freqs.extend(
+                    freqs_clone
+                        .iter()
+                        .map(|(word, freq)| (*word, freq * down_weight.powf(i as f32))),
+                )
+            }
         }
 
         normalized_freqs
