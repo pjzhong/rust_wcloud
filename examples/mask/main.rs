@@ -11,7 +11,7 @@ pub fn main() {
     let tokenlizer = ChineseTokenizer::default()
         .with_max_words(10000)
         .with_filter(&["一个"])
-        .with_min_word_leng(2);
+        .with_min_word_len(2);
 
     let wordcloud = WordCloud::default().with_tokenizer(tokenlizer);
 

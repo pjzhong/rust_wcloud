@@ -36,8 +36,13 @@ impl<'a> ChineseTokenizer {
         self
     }
 
-    pub fn with_min_word_leng(mut self, size: usize) -> Self {
+    pub fn with_min_word_len(mut self, size: usize) -> Self {
         self.min_word_length = size;
+        self
+    }
+
+    pub fn with_regex(mut self, value: Regex) -> Self {
+        self.regex = value;
         self
     }
 
@@ -207,7 +212,7 @@ mod tests {
             .lines()
             .map(|line| line.trim())
             .collect::<String>();
-        let tokenlizer = ChineseTokenizer::default().with_min_word_leng(2);
+        let tokenlizer = ChineseTokenizer::default().with_min_word_len(2);
         let mut frequencies = tokenlizer
             .get_word_frequencies(&str)
             .into_iter()

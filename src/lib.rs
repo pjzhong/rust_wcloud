@@ -67,8 +67,50 @@ impl WordCloud {
         self
     }
 
+    pub fn with_max_font_size(mut self, value: Option<f32>) -> Self {
+        self.max_font_size = value;
+        self
+    }
+
+    pub fn with_font(mut self, value: FontVec) -> Self {
+        self.font = value;
+        self
+    }
+
     pub fn with_min_font_size(mut self, value: f32) -> Self {
         self.min_font_size = value;
+        self
+    }
+
+    pub fn with_background_color(mut self, value: Rgba<u8>) -> Self {
+        self.background_color = value;
+        self
+    }
+
+    pub fn with_word_margin(mut self, value: u32) -> Self {
+        self.word_margin = value;
+        self
+    }
+
+    pub fn with_font_step(mut self, value: f32) -> Self {
+        self.font_step = value;
+        self
+    }
+
+    pub fn with_word_rotate_chance(mut self, value: f64) -> Self {
+        self.word_rotate_chance = value;
+        self
+    }
+    pub fn with_relative_font_scaling(mut self, value: f32) -> Self {
+        assert!(
+            (0.0..=1.0).contains(&value),
+            "Relative scaling must be between 0 and 1"
+        );
+        self.relative_font_scaling = value;
+        self
+    }
+    pub fn with_rng_seed(mut self, value: u64) -> Self {
+        self.rng_seed.replace(value);
         self
     }
 
